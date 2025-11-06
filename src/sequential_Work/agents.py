@@ -29,7 +29,6 @@ class jokerAgent(RoutedAgent):
 
     @message_handler
     async def handle_retrive_messages(self,message:Message,ctx:MessageContext )->None:
-        print("recieved")
         prompt=f"recieved concept to joking:{message.content}"
         llm_result=await self._model_client.create(
             messages=[

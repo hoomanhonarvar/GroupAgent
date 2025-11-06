@@ -14,6 +14,23 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 from agents import *
 import asyncio
 
+import logging
+
+from autogen_core import TRACE_LOGGER_NAME,EVENT_LOGGER_NAME
+
+# logging.basicConfig(level=logging.WARNING)
+# logger = logging.getLogger(EVENT_LOGGER_NAME)
+# logger.addHandler(logging.StreamHandler())
+# logger.setLevel(logging.DEBUG)
+
+# logger = logging.getLogger(EVENT_LOGGER_NAME + ".my_module")
+# logger.info(Message("content"))
+
+
+
+
+
+
 
 joker_topic_type="jokerAgent"
 reacter_topic_type="ReacterAgent"
@@ -51,7 +68,6 @@ async def main():
     await FormatProofAgent.register(runtime,type=format_proof_topic_type,factory=lambda: FormatProofAgent(model_client=model))
 
     await UserAgent.register(runtime,type=user_topic_type,factory=lambda: UserAgent())
-    print("hello")
     runtime.start()
     await runtime.publish_message(
         Message(content="Tell a joke a bout programming!"),

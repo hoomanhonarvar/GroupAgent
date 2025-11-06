@@ -41,8 +41,11 @@ travel_agent=AssistantAgent(
     model_client=model,
     handoffs=["flights_refunder","user"],
     system_message="""You are a travel agent.
-    The flights_refunder is in charge of refunding flights.
-    If you need information from the user, you must first send your message, then you can handoff to the user.
+    You must hand-off to the flights_refunder to refund flights.
+    The flights_refunder agent is in charge of refunding flights.
+    only flights_refunder can refund the flights.
+    If user wants to refund a flight you must hand-off to the flights_refunder to refund the flight.
+    If you need information from the user, you must first send your message, then you must hand-off to the user.
     Use TERMINATE when the travel planning is complete.
 """
 
@@ -54,10 +57,12 @@ flights_refunder=AssistantAgent(
     handoffs=["travel_agent","user"],
     tools=[refund_flight],
     system_message="""You are an agent specialized in refunding flights.
+    first send your message.
     You only need flight reference numbers to refund a flight.
     You have the ability to refund a flight using the refund_flight tool.
-    If you need information from the user, you must first send your message, then you can handoff to the user.
-    When the transaction is complete, handoff to the travel agent to finalize.
+    You have to be in conversation with the user until you get the flight_ID from user by hand offing to the user that means after each message from you handoff to user.
+    If you need information from the user, you must get it from user by handoffing to the user.
+    When the transaction is complete, hand off to the travel agent to finalize.
 """
 
 )
@@ -70,7 +75,6 @@ task = "I need to refund my flight."
 async def run_team_stream() -> None:
     input("Press enter to start the conversation.")
     task_result = await Console(team.run_stream(task=task))
-    input("Press enter to continue the conversation.")
     last_message = task_result.messages[-1]
 
     while isinstance(last_message, HandoffMessage) and last_message.target == "user":
@@ -80,7 +84,7 @@ async def run_team_stream() -> None:
             team.run_stream(task=HandoffMessage(source="user", target=last_message.source, content=user_message))
         )
         last_message = task_result.messages[-1]
-
+    model.close()
 
 asyncio.run(run_team_stream())
-asyncio.run(model.close())
+
