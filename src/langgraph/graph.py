@@ -48,7 +48,8 @@ vocabulary_tools=[syn_ant,]
 writing_model=base_model.bind_tools(writing_tools)
 # Grammar_model=base_model.bind_tools(Grammar_tools)
 Grammar_model=create_react_agent(base_model,Grammar_tools)
-vocabulary_model=base_model.bind_tools(vocabulary_tools)
+# vocabulary_model=base_model.bind_tools(vocabulary_tools)
+vocabulary_model=create_react_agent(base_model,vocabulary_tools)
 
 def writing(state:tutorials)->dict:
     if state["stage"]=="writing":
@@ -57,6 +58,8 @@ def writing(state:tutorials)->dict:
         print("in writing")
         Message_content=state["messages"][-1].content
         structured_output=base_model.with_structured_output(user_info)
+        print("Message content   ", Message_content)
+
         search_prompt=f"""
         In this part user has entered into {state["stage"]} 
         search if user has changed his/her mind or if he/she wants you to practice
@@ -64,7 +67,8 @@ def writing(state:tutorials)->dict:
         """
 
         result=structured_output.invoke(search_prompt)
-        print("result of structured output :" ,result)
+        print("structured ouput : ",result)
+
         if result.user_intent=="writing"or result.user_intent==None or result.user_intent=="" or result.user_intent=="None":
             print("state in writing: ",state["stage"])
             prompt=f"""
@@ -139,13 +143,13 @@ def vocabulary(state:tutorials)->dict:
 
         result=structured_output.invoke(search_prompt)
         if result.user_intent=="vocabulary"or result.user_intent==None or result.user_intent=="":
-            prompt=f"""
+            voab_prompt=f"""
                     you are a helpfull assistant for IELTS in  {state["intent"]["user_intent"]}
                     answer the question of user: {state['messages'][-1].content}
                     if he/she wants you to create list of synonyms and antonyms of given word you can use syn-ant tool
                     """
-            vocab_result=vocabulary_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":vocab_result})
+            vocab_result=vocabulary_model.invoke({"messages": [("system", voab_prompt)]})
+            state["messages"].append({"role":"user","content":vocab_result["messages"][-1]})
             return state
         elif result.user_intent!="" and result.user_intent!=None and  result.user_intent!="None" :
             prompt=f""" aware user that his/her stage has been changed from {state['stage']} to {result.user_intent}"""
