@@ -11,7 +11,7 @@ args = TTSettings(num_beams=5, min_length=1)
 
 @tool
 def correct_grammar(text: str) -> str:
-    """this tool can correct grammar of sentence"""
+    """this tool for correcting grammar of sentence"""
     print("hello")
     result=happy_tt.generate_text(text, args=args).text
     print("result  ",result)

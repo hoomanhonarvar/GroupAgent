@@ -10,6 +10,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel,Field
 from tools import *
 from langgraph.types import Command
+from langgraph.prebuilt import create_react_agent
 
 load_dotenv()
 BASEURL=os.getenv("BASE_URL")
@@ -42,10 +43,11 @@ class tutorials(TypedDict):
 
 
 writing_tools=[]
-Grammar_tools=[correct_grammar]
-vocabulary_tools=[syn_ant]
+Grammar_tools=[correct_grammar,]
+vocabulary_tools=[syn_ant,]
 writing_model=base_model.bind_tools(writing_tools)
-Grammar_model=base_model.bind_tools(Grammar_tools)
+# Grammar_model=base_model.bind_tools(Grammar_tools)
+Grammar_model=create_react_agent(base_model,Grammar_tools)
 vocabulary_model=base_model.bind_tools(vocabulary_tools)
 
 def writing(state:tutorials)->dict:
@@ -61,21 +63,22 @@ def writing(state:tutorials)->dict:
         Human message: {Message_content}
         """
 
-        result=structured_output.invoke([SystemMessage(content=search_prompt)])
-        if result.user_intent=="writing":
+        result=structured_output.invoke(search_prompt)
+        print("result of structured output :" ,result)
+        if result.user_intent=="writing"or result.user_intent==None or result.user_intent=="" or result.user_intent=="None":
             print("state in writing: ",state["stage"])
             prompt=f"""
                     answer the question of user about {state['messages'][-1].content}
                     """
-            result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":result})
+            writing_result=base_model.invoke([SystemMessage(content=prompt)])
+            state["messages"].append({"role":"user","content":writing_result})
             return state
         elif result.user_intent!="" and result.user_intent!=None and  result.user_intent!="None" :
             prompt=f"""
-              you are a helpfull assistant for IELTS in  {state['messages'][-1].content}
+              you are a helpfull assistant for IELTS in  {state["intent"]["user_intent"]}
               aware user that his/her stage has been changed from {state['stage']} to {result.user_intent}"""
-            result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":result})
+            writing_result=base_model.invoke([SystemMessage(content=prompt)])
+            state["messages"].append({"role":"user","content":writing_result})
             state["stage"]=result.user_intent
             state["intent"]["user_intent"]=result.user_intent
             return state
@@ -97,24 +100,26 @@ def Grammar(state:tutorials)->dict:
         Human message: {Message_content}
         """
 
-        result=structured_output.invoke([SystemMessage(content=search_prompt)])
-        if result.user_intent=="Grammar":
+        result=structured_output.invoke(search_prompt)
+        print("structured ouput : ",result)
+        if result.user_intent=="Grammar" or result.user_intent==None or result.user_intent=="" or result.user_intent=="None":
             print("ok ok")
-            prompt=f"""
-                    you are a helpfull assistant for IELTS in  {state['messages'][-1].content}
-                    answer the question of user {state['messages'][-1].content}
-                    if he/she wants you to correct grammar of sentence you can use correct grammar tool 
+            Grammare_prompt=f"""
+                    you are a helpfull assistant for IELTS in  {state['intent']["user_intent"]}
+                    answer the question of user: {state['messages'][-1].content}
+                    if he/she wants you to correct grammar of sentence you must use correct_grammar tool 
                     """
-            result=Grammar_model.invoke([SystemMessage(content=prompt)])
-            print("tool call :",result.tool_calls)
-            print("result  ",result)
-            state["messages"].append({"role":"user","content":result})
+            print("prompt is :",Grammare_prompt)
+            grammar_model_response=Grammar_model.invoke({"messages": [("system", Grammare_prompt)]})
+            # print("tool call :",grammar_model_response.tool_calls)
+            print("result  ",grammar_model_response)
+            state["messages"].append({"role":"user","content":grammar_model_response["messages"][-1]})
             return state
         elif result.user_intent!="" and result.user_intent!=None and  result.user_intent!="None" :
             
             prompt=f""" aware user that his/her stage has been changed from {state['stage']} to {result.user_intent}"""
-            result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":result})
+            grammar_result=base_model.invoke([SystemMessage(content=prompt)])
+            state["messages"].append({"role":"user","content":grammar_result})
             state["stage"]=result.user_intent
             state["intent"]["user_intent"]=result.user_intent
             return state
@@ -132,20 +137,20 @@ def vocabulary(state:tutorials)->dict:
         Human message: {Message_content}
         """
 
-        result=structured_output.invoke([SystemMessage(content=search_prompt)])
-        if result.user_intent=="vocabulary":
+        result=structured_output.invoke(search_prompt)
+        if result.user_intent=="vocabulary"or result.user_intent==None or result.user_intent=="":
             prompt=f"""
-                    you are a helpfull assistant for IELTS in  {state['messages'][-1].content}
-                    answer the question of user {state['messages'][-1].content}
+                    you are a helpfull assistant for IELTS in  {state["intent"]["user_intent"]}
+                    answer the question of user: {state['messages'][-1].content}
                     if he/she wants you to create list of synonyms and antonyms of given word you can use syn-ant tool
                     """
-            result=vocabulary_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":result})
+            vocab_result=vocabulary_model.invoke([SystemMessage(content=prompt)])
+            state["messages"].append({"role":"user","content":vocab_result})
             return state
         elif result.user_intent!="" and result.user_intent!=None and  result.user_intent!="None" :
             prompt=f""" aware user that his/her stage has been changed from {state['stage']} to {result.user_intent}"""
-            result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":result})
+            vocab_result=base_model.invoke([SystemMessage(content=prompt)])
+            state["messages"].append({"role":"user","content":vocab_result})
             state["stage"]=result.user_intent
             state["intent"]["user_intent"]=result.user_intent
             return state
