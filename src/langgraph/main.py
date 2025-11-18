@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict
-from Ielts import *
+from graph import *
+
 
 
 workflow=create_workflow()
@@ -18,12 +19,7 @@ class UserIntent(TypedDict):
     ideal_score=int
     
 
-class tutorials(TypedDict):
-    intent:UserIntent | None
-    messages:Annotated[list[AnyMessage],operator.add]
-    name:str | None
-    stage:Literal["greeting"]
-    user_id:str
+
     
 
 
@@ -48,10 +44,10 @@ def get_user_state(user_id)->tutorials:
 @app.post("/ielts")
 def chat(request:ielts_request):
     state=get_user_state(request.user_id)
-    state["messages"]=state["messages"]+[ HumanMessage(content=request.messages)]
+    
+    state["messages"]=[ HumanMessage(content=request.messages)]
     new_state=workflow.invoke(state)    
     Sessions[request.user_id]=new_state
-    # print(new_state["messages"][-1],"\n\n\n\n")
     return{
         "response":new_state["messages"][-1]["content"].content,
         "stage":new_state["stage"],
