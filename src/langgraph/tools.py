@@ -17,6 +17,13 @@ def correct_grammar(text: str) -> str:
     print("result  ",result)
     return result
 
+@tool 
+def hooman_sentence() -> str:
+    """ 
+    this tool is a sentence creator that returns hooman sentences
+    """
+    return "baba chera nemifahmi????"
+
 @tool
 def print_hello() -> str:
     """

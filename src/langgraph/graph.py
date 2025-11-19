@@ -17,7 +17,7 @@ BASEURL=os.getenv("BASE_URL")
 API_KEY=os.getenv("API_KEY")
 MODEL_NAME=os.getenv("MODEL_NAME")
 class user_info(BaseModel):
-    username: str|None = Field(description="The name of the person. if he/she doesn't mention should be null")
+    username: str = Field(description="The name of the person. if he/she doesn't mention should be null")
     user_intent:Literal["writing","Grammar","vocabulary","None"]|None = Field(description="the Intent of user like writing, Grammar, vocabulary or if he/she doesn't mentioned directly should be None")
     ideal_score: int|None = Field(description="the score target by user if he/she doesn't mention directly 0")
     summary: str|None = Field(description="the summary of user message ")
@@ -34,16 +34,17 @@ class UserIntent(TypedDict):
     
 
 class tutorials(TypedDict):
+    user_id:str
     intent:UserIntent | None
-    messages:Annotated[list[AnyMessage],operator.add]
-    name:str | None
+    messages:list
+    name:str 
     stage:Literal["greeting","writing","Grammar","vocabulary",END]
     user_id:str
     
 
 
 writing_tools=[]
-Grammar_tools=[correct_grammar,]
+Grammar_tools=[correct_grammar,hooman_sentence]
 vocabulary_tools=[syn_ant,]
 writing_model=base_model.bind_tools(writing_tools)
 # Grammar_model=base_model.bind_tools(Grammar_tools)
@@ -55,10 +56,8 @@ def writing(state:tutorials)->dict:
     if state["stage"]=="writing":
         if "role" in state["messages"][-1] :
             return state
-        print("in writing")
-        Message_content=state["messages"][-1].content
+        Message_content=state["messages"][-1]
         structured_output=base_model.with_structured_output(user_info)
-        print("Message content   ", Message_content)
 
         search_prompt=f"""
         In this part user has entered into {state["stage"]} 
@@ -67,22 +66,20 @@ def writing(state:tutorials)->dict:
         """
 
         result=structured_output.invoke(search_prompt)
-        print("structured ouput : ",result)
 
         if result.user_intent=="writing"or result.user_intent==None or result.user_intent=="" or result.user_intent=="None":
-            print("state in writing: ",state["stage"])
             prompt=f"""
-                    answer the question of user about {state['messages'][-1].content}
+                    answer the question of user about {state['messages'][-1]}
                     """
             writing_result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":writing_result})
+            state["messages"].append(writing_result.content)
             return state
         elif result.user_intent!="" and result.user_intent!=None and  result.user_intent!="None" :
             prompt=f"""
               you are a helpfull assistant for IELTS in  {state["intent"]["user_intent"]}
               aware user that his/her stage has been changed from {state['stage']} to {result.user_intent}"""
             writing_result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":writing_result})
+            state["messages"].append(writing_result.content)
             state["stage"]=result.user_intent
             state["intent"]["user_intent"]=result.user_intent
             return state
@@ -91,12 +88,9 @@ def writing(state:tutorials)->dict:
 def Grammar(state:tutorials)->dict:
     
     if state["stage"]=="Grammar":
-        # print("in grammar")
-        # print("type message :   ",type(state["messages"][-1]))
-        # print("message ::  ",state["messages"][-1]["role"])
         if "role" in state["messages"][-1] :
             return state
-        Message_content=state["messages"][-1].content
+        Message_content=state["messages"][-1]
         structured_output=base_model.with_structured_output(user_info)
         search_prompt=f"""
         In this part user has entered into {state["stage"]} 
@@ -105,25 +99,20 @@ def Grammar(state:tutorials)->dict:
         """
 
         result=structured_output.invoke(search_prompt)
-        print("structured ouput : ",result)
         if result.user_intent=="Grammar" or result.user_intent==None or result.user_intent=="" or result.user_intent=="None":
-            print("ok ok")
             Grammare_prompt=f"""
                     you are a helpfull assistant for IELTS in  {state['intent']["user_intent"]}
-                    answer the question of user: {state['messages'][-1].content}
+                    answer the question of user: {state['messages'][-1]}
                     if he/she wants you to correct grammar of sentence you must use correct_grammar tool 
                     """
-            print("prompt is :",Grammare_prompt)
             grammar_model_response=Grammar_model.invoke({"messages": [("system", Grammare_prompt)]})
-            # print("tool call :",grammar_model_response.tool_calls)
-            print("result  ",grammar_model_response)
-            state["messages"].append({"role":"user","content":grammar_model_response["messages"][-1]})
+            state["messages"].append(grammar_model_response["messages"][-1].content)
             return state
         elif result.user_intent!="" and result.user_intent!=None and  result.user_intent!="None" :
             
             prompt=f""" aware user that his/her stage has been changed from {state['stage']} to {result.user_intent}"""
             grammar_result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":grammar_result})
+            state["messages"].append(grammar_result.content)
             state["stage"]=result.user_intent
             state["intent"]["user_intent"]=result.user_intent
             return state
@@ -132,8 +121,7 @@ def vocabulary(state:tutorials)->dict:
     if state["stage"]=="vocabulary":
         if "role" in state["messages"][-1] :
             return state
-        print("vocabulary")
-        Message_content=state["messages"][-1].content
+        Message_content=state["messages"][-1]
         structured_output=base_model.with_structured_output(user_info)
         search_prompt=f"""
         In this part user has entered into {state["stage"]} 
@@ -145,16 +133,16 @@ def vocabulary(state:tutorials)->dict:
         if result.user_intent=="vocabulary"or result.user_intent==None or result.user_intent=="":
             voab_prompt=f"""
                     you are a helpfull assistant for IELTS in  {state["intent"]["user_intent"]}
-                    answer the question of user: {state['messages'][-1].content}
+                    answer the question of user: {state['messages'][-1]}
                     if he/she wants you to create list of synonyms and antonyms of given word you can use syn-ant tool
                     """
             vocab_result=vocabulary_model.invoke({"messages": [("system", voab_prompt)]})
-            state["messages"].append({"role":"user","content":vocab_result["messages"][-1]})
+            state["messages"].append(vocab_result["messages"][-1].content)
             return state
         elif result.user_intent!="" and result.user_intent!=None and  result.user_intent!="None" :
             prompt=f""" aware user that his/her stage has been changed from {state['stage']} to {result.user_intent}"""
             vocab_result=base_model.invoke([SystemMessage(content=prompt)])
-            state["messages"].append({"role":"user","content":vocab_result})
+            state["messages"].append(vocab_result.content)
             state["stage"]=result.user_intent
             state["intent"]["user_intent"]=result.user_intent
             return state
@@ -169,8 +157,7 @@ def greeting(state:tutorials)->dict:
     elif state["stage"]=="vocabulary":
         return state
     state["stage"]="greeting"
-    print("I am in: ",state["stage"])
-    Message_content=state["messages"][-1].content
+    Message_content=state["messages"][-1]
     structured_output=base_model.with_structured_output(user_info)
     search_prompt=f"""
     search for user intent, Ideal score, username, summary
@@ -208,15 +195,12 @@ def greeting(state:tutorials)->dict:
             just to be sure
             """
             result=base_model.invoke([{"role":"user","content":prompt_recieved_intent}]) 
-            state["messages"].append({"role":"user","content":result})
-            print("doneeeeeeeee")
+            state["messages"].append(result.content)
 
             state["stage"]=state["intent"]["user_intent"]
-            print(state["stage"],"     ",state["intent"]["user_intent"])
         else:
             result=base_model.invoke([{"role":"user","content":prompt_score}]) 
-            state["messages"].append({"role":"user","content":result})
-            state["stage"]=END
+            state["messages"].append(result.content)
     elif llm_answer.ideal_score!=0:
         state["intent"]["ideal_score"]=llm_answer.ideal_score
         state["intent"]["summary"]=llm_answer.summary
@@ -226,18 +210,15 @@ def greeting(state:tutorials)->dict:
         ask user what does he/she want to pracitce ?
         """
         result=base_model.invoke([{"role":"user","content":prompt_recieved_intent}]) 
-        state["messages"].append({"role":"user","content":result})
+        state["messages"].append(result.content)
         state["stage"]=state["intent"]["user_intent"]
 
     else:
         result=base_model.invoke([{"role":"user","content":greeting_prompt_intent}]) 
-        state["messages"]=[{"role":"user","content":result}]
-        print("helllooooooooo")
-        state["stage"]=END
-    state['name']=llm_answer.username
-    print("stage eeee :",state["stage"])
-
+        state["messages"].append(result.content)
         
+    
+    state['name']=llm_answer.username
     return state
 
 
@@ -263,11 +244,6 @@ def create_workflow():
 
     app=workflow.compile()
     return app
-# message=input("start a chat...")
-# start_state=tutorials({"messages":[HumanMessage(content=message)]})
-# result=app.invoke(start_state)
-# print(result)
-# print(len(result["messages"]))
 
     
     
