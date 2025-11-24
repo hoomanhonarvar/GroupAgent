@@ -1,16 +1,13 @@
 from dotenv import load_dotenv
 import os
-from langchain.tools import tool
 from langchain_openai import ChatOpenAI
 from typing_extensions import TypedDict,Literal,Annotated
 import operator
 from langchain.messages import AnyMessage,HumanMessage,SystemMessage,ToolMessage
 from langgraph.graph import START,END,StateGraph
-from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel,Field
 from tools import *
-from langgraph.types import Command
-from langgraph.checkpoint.memory import InMemorySaver
+
 
 load_dotenv()
 API_KEY=os.getenv("API_KEY_OSS")
@@ -61,7 +58,16 @@ def writing(state:tutorials)->dict:
     }
     
 
-
+def tool_node(state: dict):
+    print("you are in tool call")
+    result=[]
+    for tool_call in state["messages"][-1].tool_calls:
+        print("find a tool calling",tool_call["name"])
+        tool = tools_by_name[tool_call["name"]]
+        observation = tool.invoke(tool_call["args"])
+        result.append(ToolMessage(content=observation, tool_call_id=tool_call["id"]))
+   
+    return {"messages": result}
 
 
 def Grammar(state:tutorials)->dict:
@@ -70,8 +76,14 @@ def Grammar(state:tutorials)->dict:
     prompt=f"""you are helpfull grammar assistent.
             aware user that has enterned into {state["stage"]} stage
             answer user question in farsi
+            you should call correc_grammar tool if user wants you to correct grammar
 
             """
+    result=Grammar_model.invoke([SystemMessage(
+                            content=prompt    
+                        )]+state["messages"]
+    )
+    print(result)
     return {
         "messages":[Grammar_model.invoke([SystemMessage(
                             content=prompt
@@ -102,11 +114,8 @@ def greeting(state:tutorials)->dict:
     Message_content=state["messages"][-1]
     structured_output=base_model.with_structured_output(user_info)
     search_prompt=f"""
-    search for user intent, Ideal score, username, summary
-    find this information when directly mentioned in message 
-    user_intent should be one of writing, Grammar, vocabulary or None and until user don't mention it, you should not filled it
-    ideal score can be analysis from message and should be int you must not use your imagination. when it mentioned by user clearly and some descriptions about it set this score, otherwise it should be 0
-    the highest score is 9 and lowest score is 0
+    search for user intent 
+    user_intent should be one of writing, Grammar, vocabulary or None and until user  
     Human message: {Message_content}
     """
 
@@ -151,19 +160,7 @@ def router(state) -> Literal["writing", "Grammar", "vocabulary",END]:
         return "vocabulary"
     else:
         return END
-def conversation(state:tutorials)->dict:
-    return {
-        "messages": [
-            base_model.invoke(
-                [
-                    SystemMessage(
-                        content="You are a helpful assistant."
-                    )
-                ]
-                + state["messages"]
-            )
-        ],
-    }
+
 def create_workflow():
     
     workflow=StateGraph(tutorials)
@@ -171,6 +168,7 @@ def create_workflow():
     workflow.add_node("writing",writing)
     workflow.add_node("Grammar",Grammar)
     workflow.add_node("vocabulary",vocabulary)
+    workflow.add_node("tool_node",tool_node)
 
     workflow.add_edge(START,"greeting")
     workflow.add_edge("greeting",END)
@@ -183,14 +181,12 @@ def create_workflow():
         END: END
     }
 )
-
+    workflow.add_edge("vocabulary","tool_node")
+    workflow.add_edge("Grammar","tool_node")
     workflow.add_edge("vocabulary",END)
     workflow.add_edge("writing",END)
     workflow.add_edge("Grammar",END)
-
-
-    
-
+    workflow.add_edge("tool_node",END)
     
     return workflow
 
